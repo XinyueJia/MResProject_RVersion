@@ -1,0 +1,183 @@
+---
+title: "Explore"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+rm(list = ls())
+```
+packages
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(VIM)
+library(mice)
+library(MASS)
+library(reshape2)
+```
+
+import data
+```{r}
+rawdata <- read.csv("Data/SB-105-Full.csv")
+glimpse(rawdata)
+```
+
+```{r}
+summary(rawdata)
+```
+
+
+# 1. Missing data
+```{r fig.height=5, fig.width=10}
+aggr(rawdata)
+```
+```{r}
+aggr(rawdata, plot = FALSE)
+```
+
+
+
+```{r}
+missing_data <- aggr(rawdata, plot = FALSE)$missings
+data <- filter(missing_data, Count < 50)
+data1 <- rawdata[, data$Variable]
+```
+
+```{r fig.height=5, fig.width=15}
+aggr(data1, only.miss = T, 
+     cex.axis = 0.4, bars = T)
+```
+
+#                                             Missing at random (MAR) ?
+
+
+## 1.1 Multiple Imputation
+```{r fig.height=13, fig.width=13}
+imp <- mice(data1)
+data1.1 <- complete(imp)
+```
+
+## 1.2 Remove raws (KRS)
+```{r}
+data1.2 <- na.omit(data1)
+```
+
+# 2. Explore
+
+## 2.1 response variable
+```{r}
+p1.1 <- ggplot(data1.1, aes(x = Total.worms)) + 
+  geom_histogram(binwidth = 5) + 
+  theme_bw()
+
+p1.2 <- ggplot(data1.2, aes(x = Total.worms)) + 
+  geom_histogram(binwidth = 5) + 
+  theme_bw()
+
+ggarrange(p1.1, p1.2)
+```
+## 2.2 Body Weight
+```{r}
+BW_data <- rawdata[, c(2:8, 42:57)]
+
+BW_data_d9 <- filter(BW_data, Dpi == 9)
+BW_data_d9 <- BW_data_d9[ ,-(18:22)]
+BW_data_d9 <- melt(BW_data_d9, measure.vars = 8:18, 
+                variable.name = "Day", value.name = "BW")
+BW_data_d21 <- filter(BW_data, Dpi == 21)
+BW_data_d21 <- BW_data_d21[ ,-c(21, 22)]
+BW_data_d21 <- melt(BW_data_d21, measure.vars = 8:21, 
+                variable.name = "Day", value.name = "BW")
+
+p2.1 <- ggplot(BW_data_d9, aes(Day, BW)) + 
+  geom_line(aes(group = Mouse, colour = Protein, linetype = Line), size = 0.25) +
+  facet_grid(Protein~ Line) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 5, hjust = 1, angle = 45), legend.position = "None") + 
+  labs(title = "Dpi-9")
+
+p2.2 <- ggplot(BW_data_d21, aes(Day, BW)) + 
+  geom_line(aes(group = Mouse, colour = Protein, linetype = Line), size = 0.25) +
+  facet_grid(Protein~ Line) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(size = 5, hjust = 1, angle = 45), legend.position = "None") + 
+  labs(title = "Dpi-21")
+
+ggarrange(p2.1, p2.2)
+```
+
+## 2.3 Serum 
+
+```{r}
+Serum_data <- rawdata[, c(2:8, 9:15)]
+Serum_data <- melt(Serum_data, measure.vars = 8:14, 
+                variable.name = "Item", value.name = "Index" )
+Serum_data$Index <- as.numeric(Serum_data$Index)
+
+imp_Serum <- mice(Serum_data)
+Serum_data_1 <- complete(imp_Serum)
+Serum_data_1 <- Serum_data_1 %>%
+  group_by(Line, Protein, Item) %>% 
+  summarise(mean(Index), sd(Index))
+Serum_data_1 <- data_frame(Serum_data_1)
+names(Serum_data_1) <- c("Line", "Protein", "Item", "Index", "sd")
+
+Serum_data_2 <- na.omit(Serum_data)
+Serum_data_2 <- Serum_data_2 %>%
+  group_by(Line, Protein, Item) %>% 
+  summarise(mean(Index), sd(Index))
+names(Serum_data_2) <- c("Line", "Protein", "Item", "Index", "sd")
+
+p3.1 <- ggplot(Serum_data_1,aes(x = Item, y = Index, fill = Protein)) +
+  geom_bar(stat = 'identity', position = 'dodge',colour='black') +
+  facet_wrap(~ Line) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,size = 5)) + 
+  labs(title = "Multiple Imputation")
+
+p3.2 <- ggplot(Serum_data_2,aes(x = Item, y = Index, fill = Protein)) +
+  geom_bar(stat = 'identity', position = 'dodge',colour='black') +
+  facet_wrap(~ Line) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45,hjust = 1,size = 5)) + 
+  labs(title = "Remove NA")
+ggarrange(p3.1, p3.2, ncol = 1)
+```
+## 2.4 QPCR (Expression relative to GAPDH ?)
+```{r}
+QPCR_data <- rawdata[, c(2:8, 28:41)]
+QPCR_data <- melt(QPCR_data, measure.vars = 8:21, 
+                variable.name = "Cytokines", value.name = "Expression" )
+QPCR_data <- 
+
+  
+
+```
+
+
+## 2.5 Food Intake
+```{r}
+FI_data <- rawdata[, c(2:8, 61:71)]
+FI_data_d9 <- filter(FI_data, Dpi == 9)
+FI_data_d9 <- FI_data_d9[ ,-(16:18)]
+FI_data_d9 <- melt(FI_data_d9, measure.vars = 8:15, 
+                variable.name = "Day", value.name = "FI")
+
+
+FI_data_d21 <- filter(FI_data, Dpi == 21)
+FI_data_d21 <- melt(FI_data_d21, measure.vars = 8:18, 
+                variable.name = "Day", value.name = "FI")
+
+summarise(group_by(FI_data_d9, Mouse), mean(FI))
+
+```
+
+# 3. Fit models
+```{r}
+model0 <- glm.nb(Total.worms ~ ., data = data1.1[, 2:67] )
+summary(model0)
+```
+
